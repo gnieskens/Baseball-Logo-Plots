@@ -1,0 +1,216 @@
+---
+title: "Baseball Logo Plots"
+author: "Greg Nieskens"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+setwd("/Users/gregnieskens/Desktop/Baseball Shiny App")
+```
+
+
+```{r}
+#load packages
+library(shiny)
+library(mlbplotR)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(baseballr)
+library(readxl)
+```
+
+
+Find the Data needed in the below code. 
+```{r }
+#find the data you want
+
+fg <-fg_team_batter(
+  age = "",
+  pos = "all",
+  stats = "bat",
+  lg = "all",
+  qual = "y",
+  startseason = "2024",
+  endseason = "2024",
+  startdate = "",
+  enddate = "",
+  hand = "",
+  team = "0,ts",
+  pageitems = "1000",
+  pagenum = "1",
+  ind = "0",
+  rost = "0",
+  players = "",
+  type = "8",
+  postseason = "",
+  sortdir = "default",
+  sortstat = "WAR"
+)
+teams <- read_csv("teams.csv")
+sc <- fg_team_pitcher(
+  age = "",
+  pos = "all",
+  stats = "pit",
+  lg = "all",
+  qual = "y",
+  startseason = "2024",
+  endseason = "2024",
+  startdate = "",
+  enddate = "",
+  month = "0",
+  hand = "",
+  team = "0,ts",
+  pageitems = "1000",
+  pagenum = "1",
+  ind = "0",
+  rost = "0",
+  players = "",
+  type = "8",
+  postseason = "",
+  sortdir = "default",
+  sortstat = "WAR"
+) 
+
+
+fg <- fg %>% rename(Team = team_name)
+sc <- sc %>% rename(Team = team_name)
+
+
+fg_sc <- inner_join(fg, sc, by = "Team")
+fg_sc <- inner_join(fg_sc, teams,
+                    by = "Team")
+
+fg_sc <- fg_sc %>% rename(`Hitter fWAR` = WAR.x)
+fg_sc <- fg_sc %>% rename(`Pitcher fWAR` = WAR.y)
+
+fg_sc <- fg_sc%>%
+  mutate(NewColumn <-R.x / TG.x)
+
+fg_sc <- fg_sc %>% rename('Runs Per Game' = `NewColumn <- R.x/TG.x`)
+fg_sc <- fg_sc %>% rename('wRC+' = wRC_plus)
+
+varlist <- names(fg_sc)[c(2:12, 64,69,384,449,401,731)]
+
+```
+
+Use this code to view every single variable! 
+varlist <- names(fg_sc)
+
+Now plot the data from above here below
+```{r}
+
+myplot <- function(x_var, y_var, league){
+  # Filter data based on the league
+  if(league == "NL"){
+    fg_sc <- filter(fg_sc, League == "NL")
+  }
+  if(league == "AL"){
+    fg_sc <- filter(fg_sc, League == "AL")
+  }
+  
+  # Calculate the averages for the specified variables
+  x_avg <- mean(fg_sc[[x_var]], na.rm = TRUE)
+  y_avg <- mean(fg_sc[[y_var]], na.rm = TRUE)
+  
+  # Create the plot
+  ggplot(data = fg_sc, mapping = aes(.data[[x_var]], .data[[y_var]])) +
+    geom_mlb_scoreboard_logos(aes(team_abbr = Team_mlb), width = 0.075) +
+    geom_blank() +
+    geom_hline(yintercept = y_avg, color = "red", linetype = "dashed") +
+    geom_vline(xintercept = x_avg, color = "red", linetype = "dashed") +
+    labs(x = x_var, y = y_var) +
+    theme(text = element_text(size = 18), 
+          plot.title = element_text(colour = "black", size = 16, hjust = 0.5, vjust = 0.8, angle = 0)) +
+    ggtitle(paste("2024 FanGraphs Hitter and Pitcher fWAR"))
+}
+
+# Example call to the function (replace fg_sc with your data frame)
+# myplot("some_x_variable", "some_y_variable", "NL")
+
+
+```
+Helps the x axis and y axis numbers
+```{r}
+library(ggplot2)
+library(dplyr)
+
+myplot <- function(x_var, y_var, league){
+  # Filter data based on the league
+  if(league == "NL"){
+    fg_sc <- filter(fg_sc, League == "NL")
+  }
+  if(league == "AL"){
+    fg_sc <- filter(fg_sc, League == "AL")
+  }
+  
+  # Calculate the averages for the specified variables
+  x_avg <- mean(fg_sc[[x_var]], na.rm = TRUE)
+  y_avg <- mean(fg_sc[[y_var]], na.rm = TRUE)
+  
+  # Create the plot
+  ggplot(data = fg_sc, mapping = aes(.data[[x_var]], .data[[y_var]])) +
+    geom_mlb_scoreboard_logos(aes(team_abbr = Team_mlb), width = 0.075) +
+    geom_blank() +
+    geom_hline(yintercept = y_avg, color = "red", linetype = "dashed") +
+    geom_vline(xintercept = x_avg, color = "red", linetype = "dashed") +
+    labs(x = x_var, y = y_var) +
+    theme(text = element_text(size = 18), 
+          plot.title = element_text(colour = "black", size = 16, hjust = 0.5, vjust = 0.8, angle = 0)) +
+    ggtitle(paste("2024 FanGraphs Hitter and Pitcher fWAR")) +
+    scale_x_continuous(breaks = seq(floor(min(fg_sc[[x_var]], na.rm = TRUE)), 
+                                    ceiling(max(fg_sc[[x_var]], na.rm = TRUE)), by = 2)) +
+    scale_y_continuous(breaks = seq(floor(min(fg_sc[[y_var]], na.rm = TRUE)), 
+                                    ceiling(max(fg_sc[[y_var]], na.rm = TRUE)), by = 2))
+}
+
+# Example call to the function (replace fg_sc with your data frame)
+# myplot("some_x_variable", "some_y_variable", "NL")
+
+```
+
+Build the Shiny App *DO NOT ALTER BESIDES TITLE
+```{r}
+ui <- fluidPage(
+  theme = bslib::bs_theme(version = 4,
+                          bootswatch = "superhero"),
+  fluidRow(
+    column(4, wellPanel(
+      h3("Exploring FanGraphs MLB Team Batting and Pitching Data"),
+      hr(), hr(), hr(),
+      selectInput("xvar", "Select Horizontal Variable:",
+                  varlist,
+                  selected = "Hitter fWAR"),
+      selectInput("yvar", "Select Vertical Variable:",
+                  varlist,
+                  selected = "Pitcher fWAR" ),
+      radioButtons(
+        "league",
+        "Select League:",
+        choices = c("NL", "AL", "All Teams"),
+        selected = "All Teams",
+        inline = FALSE,
+      )
+    )),
+    column(8,
+           hr(),
+      plotOutput("plot",
+                 height = "515px",
+                 width = "595px"),
+      hr(), hr(),
+      p("Data is collected from the Team Batting Stats section
+      from fangraphs.com."),
+      p("The mlbplotR package is used to
+      plot the MLB team logos in the ggplot scatterplot.")
+    ))
+)
+server <- function(input, output, session) {
+  output$plot <- renderPlot({
+    myplot(input$xvar, input$yvar, input$league)
+  }, res = 96)
+}
+
+shinyApp(ui = ui, server = server)
+```
+
